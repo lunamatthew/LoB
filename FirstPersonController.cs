@@ -2,35 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-// 2 Timothy 2:21-26
-// Good verse to use at intro?
-// ********************* TO DO'S/IDEAS *********************
-// Need video for HW turn in/presentation
-// fix head bobbing
-// animation speed of arms breathing based on speed
-// add attack(s)
-// animation for dashing
-// divine power / bow?
-// special attack?
-// Health/Stamina/Power bar should be implemented
-// potion drinking/food eating
-// throwing of objects
-// reading of book? (Divine Power)
-// sounds for attacks? Character/sword/mace/arrow/divine power
-// Shield? Torch?
-// Bombs?
-// Flush out sprinting
-// sounds for sprinting
-// Breathing?
-// Godfrey?
-// Decide on a Boss, and mechanics FIRST before stage build
-// Build boss stage / Multiple phases / state machine
-// Procedural Generation? 
-// Gear?
-// Enemies?
-// Focus on Player mechanics/A single boss for project due date
-// ********************************************************
-
 public class SimpleFPSController : MonoBehaviour {
     public float speed = 5.0f;
     public float mouseSensitivity = 2.0f;
