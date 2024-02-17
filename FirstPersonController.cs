@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SimpleFPSController : MonoBehaviour {
+public class FPSController : MonoBehaviour {
     public float speed = 5.0f;
     public float mouseSensitivity = 2.0f;
 
