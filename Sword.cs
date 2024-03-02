@@ -7,20 +7,24 @@ public class Sword : Weapon {
     private BoxCollider swordHitBox;
 
     public override void OnEquip() {
-        throw new System.NotImplementedException();
+        //throw new System.NotImplementedException();
+        audioSource.clip = onUseAudioClip;
+        audioSource.PlayDelayed(1.2f);
     }
 
     public override void OnUse() {
         //throw new System.NotImplementedException();
         swordHitBox.enabled = true;
-        int soundIndex = Utility.GetRandomNonRepeatInt(weaponAudioClips.Length, lastSoundIndex);
+        int soundIndex = Utility.GetRandomNonRepeatInt(audioClipsActivating.Length, lastSoundIndex);
         lastSoundIndex = soundIndex;
-        weaponAudioSource.clip = weaponAudioClips[soundIndex];
-        weaponAudioSource.Play();
+        audioSource.clip = audioClipsActivating[soundIndex];
+        audioSource.Play();
     }
 
     public override void onStopUse() {
         //throw new System.NotImplementedException();
+        audioSource.clip = onStopUseAudioClip;
+        audioSource.PlayDelayed(1.2f);
         swordHitBox.enabled = false;
     }
 }
