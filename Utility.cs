@@ -19,13 +19,25 @@ public static class Utility
         return freshInt;
     }
 
-    public static bool IsGrounded(GameObject go) {
+    public static bool IsGrounded(GameObject go, float rayLength = 0.75f) {
         RaycastHit hit;
-        float rayLength = 0.5f;
 
         if (Physics.Raycast(go.transform.position, -Vector3.up, out hit, rayLength)) {
             return true;
         }
         return false;
     }
+
+    
+    public static IEnumerator PlayAudioSourceAfterTime(float time, AudioSource audioSource) {
+        yield return new WaitForSeconds(time);
+        audioSource.Play();
+    }
+
+    public static IEnumerator GameObjectToggle(GameObject go, bool enabled, float time) {
+        yield return new WaitForSeconds(time);
+        go.SetActive(enabled);
+    }
+    
+
 }

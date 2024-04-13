@@ -50,7 +50,7 @@ public class FPSController : MonoBehaviour {
 
     private bool isDashing = false;
     private Vector3 dashDirection;
-    private float dashSpeed = 25.0f, dashDuration = 0.5f, dashCooldown = 3.0f, lastDashTime;
+    private float dashSpeed = 25.0f, dashDuration = 0.5f; //dashCooldown = 3.0f, lastDashTime;
 
     [SerializeField]
     private Animator playerAnimator;
@@ -101,21 +101,54 @@ public class FPSController : MonoBehaviour {
     [SerializeField]
     private PlayerUI playerUI;
 
+    private bool isMainHandBusy = false, isOffHandBusy = false;
+
+    // vaulting
+    private bool isVaulting = false;
+    [SerializeField] 
+    private float vaultAnimDuration = 1.0f, vaultHeight = 1.0f;
+    [SerializeField]
+    private LayerMask vaultLayerMask;
+    // valuting
+
+    private Rigidbody rb;
+    private bool isMovementEnabled = true;
+
+    private Vector3 currentPos, lastPos;
+
+    private float dashStaminaCost = 15.0f;
+
+    //private bool isDashBobbingMotion = false;
 
     void Start() {
-        Debug.Log("Main Camera: " + Camera.main.gameObject.name + " " + Camera.main);
+        //Debug.Log("Main Camera: " + Camera.main.gameObject.name + " " + Camera.main);
+
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
 
-        characterController = GetComponent<CharacterController>();
+        //characterController = GetComponent<CharacterController>();
+        rb = GetComponent<Rigidbody>();
 
         midpoint = Camera.main.transform.localPosition.y;
+
+        playerStats.InitializeStats();
+
+        playerUI.InitializeBars(playerStats);
 
         //playerStats = GetComponent<Stats>();
         //playerUI = GetComponent<PlayerUI>();
     }
-    
+
+    //private void OnCollisionEnter(Collision collision) {
+    //    Debug.Log(collision.gameObject.name);
+    //}
+
+    public Stats getStats() {
+        return playerStats;
+    }
+
     private void PlayFootStep() {
+        //Debug.Log("Playing Footstep");
         newFootStepIndex = Utility.GetRandomNonRepeatInt(footStepClips.Length, lastFootStepIndex);
         lastFootStepIndex = newFootStepIndex;
         footStepAS.clip = footStepClips[newFootStepIndex];
@@ -123,24 +156,34 @@ public class FPSController : MonoBehaviour {
     }
 
     private void Dash() {
-        if (Time.time - lastDashTime < dashCooldown)
-            return;
+        //if (Time.time - lastDashTime < dashCooldown)
+        //    return;
 
-        dashDirection = characterController.velocity.normalized; 
+        float horizontalInput = Input.GetAxis("Horizontal");
+        float verticalInput = Input.GetAxis("Vertical");
 
-        Vector3 dashVelocity = dashDirection * dashSpeed;
+        //dashDirection = characterController.velocity.normalized; 
+        dashDirection = transform.forward * verticalInput + transform.right * horizontalInput;
+        dashDirection.y = 0f;
 
-        playerStats.AdjustStamina(-10.0f);
-        StartCoroutine(PerformDash(dashVelocity));
+        if (dashDirection.magnitude > 0) {
+            dashDirection.Normalize();
 
-        if (dashAudioClips.Length > 0) {
-            lastDashAudio = Utility.GetRandomNonRepeatInt(dashAudioClips.Length, lastDashAudio);
-            footStepAS.clip = dashAudioClips[lastDashAudio];
-            footStepAS.volume *= 5f;
-            footStepAS.Play();
+            Vector3 dashVelocity = dashDirection * dashSpeed;
+            //Debug.Log(dashDirection);
+
+            playerStats.TakeStaminaDrain(dashStaminaCost);
+            StartCoroutine(PerformDash(dashVelocity));
+
+            if (dashAudioClips.Length > 0) {
+                lastDashAudio = Utility.GetRandomNonRepeatInt(dashAudioClips.Length, lastDashAudio);
+                footStepAS.clip = dashAudioClips[lastDashAudio];
+                footStepAS.volume *= 5f;
+                footStepAS.Play();
+            }
         }
 
-        lastDashTime = Time.time;
+        //lastDashTime = Time.time;
     }
 
     
@@ -149,27 +192,36 @@ public class FPSController : MonoBehaviour {
 
         float startTime = Time.time;
         while (Time.time < startTime + dashDuration) {
-            characterController.SimpleMove(dashVelocity);
+            rb.velocity = dashVelocity;
+            //characterController.SimpleMove(dashVelocity);
             //float rollAngle = Mathf.Sin((Time.time - startTime) * 10) * 10;
             //Camera.main.transform.rotation = Quaternion.Euler(Camera.main.transform.rotation.eulerAngles.x, Camera.main.transform.rotation.eulerAngles.y, rollAngle);
             yield return null;
         }
-
+        rb.velocity = Vector3.zero;
         //Camera.main.transform.rotation = Quaternion.Euler(Camera.main.transform.rotation.eulerAngles.x, Camera.main.transform.rotation.eulerAngles.y, 0);
 
         isDashing = false;
     }
 
-    private IEnumerator AttackBase() {
+    private IEnumerator AttackDelay() {
         canAttack = false;
-        playerAnimator.SetTrigger("AttackBase");
-        inHandsWeapon.OnUse();
+        //playerAnimator.SetTrigger("AttackBase");
+        //inHandsWeapon.OnUse();
 
         yield return new WaitForSeconds(attackCooldown);
 
         canAttack = true;
         //inHandsWeapon.onStopUse();
     }
+
+    private void AttackBase() {
+        playerAnimator.SetTrigger("AttackBase");
+        inHandsWeapon.OnUse();
+    }
+
+
+
 
     private IEnumerator TorchAttack() {
         canAttack = false;
@@ -183,6 +235,11 @@ public class FPSController : MonoBehaviour {
         playerAnimator.SetBool("IsCharging", true);
     }
 
+    private void EndCharging() {
+        isCharging = false;
+        playerAnimator.SetBool("IsCharging", false);
+    }
+
     private void ReleaseChargedAttack() {
         if (isCharging) {
             inHandsWeapon.OnUse();
@@ -192,6 +249,18 @@ public class FPSController : MonoBehaviour {
             isCharging = false;
         }
     }
+    /*
+    private void HandleLooking() {
+        float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
+        float mouseY = -Input.GetAxis("Mouse Y") * mouseSensitivity;
+
+        verticalRotation += mouseY;
+        verticalRotation = Mathf.Clamp(verticalRotation, -90, 90);
+
+        transform.Rotate(Vector3.up * mouseX);
+        Camera.main.transform.localRotation = Quaternion.Euler(verticalRotation, 0, 0);
+    }
+    */
 
     private void HandleMovement() {
         float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
@@ -202,30 +271,39 @@ public class FPSController : MonoBehaviour {
 
         transform.Rotate(Vector3.up * mouseX);
         Camera.main.transform.localRotation = Quaternion.Euler(verticalRotation, 0, 0);
+        //transform.rotation = Quaternion.Lerp(transform.rotation, inHandsWeapon.transform.rotation, Time.deltaTime * 10.0f);
 
-        float forwardSpeed = Input.GetAxis("Vertical") * speed;
-        float sideSpeed = Input.GetAxis("Horizontal") * speed;
+        if (Utility.IsGrounded(gameObject) && !isDashing) {
 
-        footStepAS.volume = Utility.VOLUME_WALK;
-        bobbingSpeed = Utility.BOBBING_SPEED;
-        footstepDelay = Utility.FOOTSTEP_DELAY;
+            float forwardSpeed = Input.GetAxis("Vertical") * speed * Time.deltaTime;
+            float sideSpeed = Input.GetAxis("Horizontal") * speed * Time.deltaTime;
 
-        if (Input.GetKey(KeyCode.LeftShift)) {
-            bobbingSpeed *= 2f;
-            forwardSpeed *= 2f;
-            sideSpeed *= 1.5f;
-            footStepAS.volume *= 2f;
-            footstepDelay /= 2f;
-            playerStats.AdjustStamina(-0.5f);
-        } else if (Input.GetKey(KeyCode.Space)) {
-            Dash();
+
+            footStepAS.volume = Utility.VOLUME_WALK;
+            bobbingSpeed = Utility.BOBBING_SPEED;
+            footstepDelay = Utility.FOOTSTEP_DELAY;
+
+            if (Input.GetKey(KeyCode.LeftShift) && playerStats.getCurrentStamina() >= 1f) {
+                bobbingSpeed *= 2f;
+                forwardSpeed *= 2f;
+                sideSpeed *= 1.5f;
+                footStepAS.volume *= 2f;
+                footstepDelay /= 2f;
+                playerStats.AdjustStamina(-1f);
+            } else if (Input.GetKey(KeyCode.Space) && !isVaulting) {
+                RaycastHit hit; // vaulting
+                if (Physics.Raycast(transform.position, transform.forward, out hit, vaultHeight, vaultLayerMask)) {
+                    StartCoroutine(VaultOverLedge(hit.point));
+                } else if (playerStats.getCurrentStamina() >= dashStaminaCost) {
+                    Dash();
+                }
+            }
+            Vector3 movement = new Vector3(sideSpeed, 0, forwardSpeed);
+            movement = transform.TransformDirection(movement); // Transform into world space
+
+            // Apply the movement to the rigidbody
+            rb.MovePosition(rb.position + movement);
         }
-
-        Vector3 speedVector = new Vector3(sideSpeed, 0, forwardSpeed);
-
-        speedVector = transform.rotation * speedVector;
-
-        characterController.SimpleMove(speedVector);
     }
 
     IEnumerator DeactivateOffHandLayer(float waitTime) {
@@ -239,9 +317,10 @@ public class FPSController : MonoBehaviour {
     }
 
     void DashBobbingMotion() {
-        float dashBobbingAmount = 70f;
+        //Debug.Log("Dash bob motion!");
+        float dashBobbingAmount = 1f;
         float dashBobbingSpeed = 5f;
-        float leanFactor = 1f;
+        float leanFactor = 25f;
 
         float rollAngle = Mathf.Sin(Time.time * dashBobbingSpeed) * dashBobbingAmount;
 
@@ -254,9 +333,10 @@ public class FPSController : MonoBehaviour {
 
         Quaternion rollRotation = Quaternion.Euler(0f, 0f, totalRollAngle);
 
-        float lerpFactor = 0.1f;
+        float lerpFactor = 10f;
         float interpolationFactor = lerpFactor * Time.deltaTime;
         Camera.main.transform.localRotation = Quaternion.Lerp(Camera.main.transform.localRotation, rollRotation, interpolationFactor);
+        //Debug.Log(rollRotation + " " + interpolationFactor);
     }
 
     // Almond espresso decaff, shot of sugar free vanilla, extra sweet cream foam
@@ -308,8 +388,22 @@ public class FPSController : MonoBehaviour {
         inHandsWeapon.mesh.SetActive(true);
     }
 
+    private IEnumerator MainHandBusyDelay(float time) {
+        isMainHandBusy = true;
+        yield return new WaitForSeconds(time);
+        isMainHandBusy = false;
+    }
+
+    private IEnumerator OffHandBusyDelay(float time) {
+        isOffHandBusy = true;
+        yield return new WaitForSeconds(time);
+        isOffHandBusy = false;
+    }
+
     private IEnumerator UnsheathBow() {
         isBowEquipped = true;
+        isMainHandBusy = true;
+        isOffHandBusy = true;
         playerAnimator.SetLayerWeight(2, 1.0f);
         playerAnimator.SetTrigger("EquipBow");
         inHandsWeapon.OnEquip();
@@ -324,6 +418,7 @@ public class FPSController : MonoBehaviour {
         StartCoroutine(ActivateGOAtTime(inHandsWeapon.mesh, 1.25f, false));
         yield return new WaitForSeconds(3.5f);
         playerAnimator.SetLayerWeight(2, 0.0f);
+        isOffHandBusy = false;
     }
 
     private void OffhandEnable() {
@@ -341,82 +436,169 @@ public class FPSController : MonoBehaviour {
         inOffHandHoldable = null;
     }
 
-    void Update() {
+    /*
+    private IEnumerator VaultOverLedge(Vector3 ledgePosition) {
+        isVaulting = true;
+        float startTime = Time.time;
+        //playerAnimator.SetTrigger("Vault");
+
+        while (Time.time < startTime + vaultAnimDuration) {
+            float progress = (Time.time - startTime) / vaultAnimDuration;
+            float verticalOffset = Mathf.Lerp(0, vaultHeight, progress);
+            transform.position = new Vector3(transform.position.x, transform.position.y + verticalOffset, transform.position.z);
+
+
+            yield return null;
+        }
+        // Ensure the player ends up at the correct height after the vault
+        transform.position = new Vector3(transform.position.x, ledgePosition.y + vaultHeight, transform.position.z);
+        Debug.Log("New transform: " + transform.position);
+        isVaulting = false;
+    }
+    */
+
+    public IEnumerator StunLock(float time) {
+        isMovementEnabled = false;
+        //characterController.enabled = isMovementEnabled;
+        yield return new WaitForSeconds(time);
+        //characterController.enabled = true;
+        isMovementEnabled = true;
+    }
+
+    public Rigidbody GetRigidBody() {
+        return rb;
+    }
+
+    private IEnumerator VaultOverLedge(Vector3 ledgePosition) {
+        isVaulting = true;
+        float startTime = Time.time;
+        float initialHeight = transform.position.y;
+        bool continueClimbing = true;
+
+        //while (Time.time < startTime + vaultAnimDuration) {
+        while (continueClimbing) {
+            float progress = (Time.time - startTime) / vaultAnimDuration;
+            float verticalOffset = Mathf.Lerp(0, vaultHeight * 3f, progress);
+            float newY = initialHeight + verticalOffset;
+            transform.position = new Vector3(transform.position.x, newY, transform.position.z);
+
+            //if (!Input.GetKey(KeyCode.Space) || !Physics.Raycast(transform.position, transform.forward, vaultHeight, vaultLayerMask)) {
+            if (!Input.GetKey(KeyCode.Space) || !Physics.Raycast(transform.position, transform.forward, 2.0f, vaultLayerMask)) {
+                continueClimbing = false;
+            }
+
+            yield return null;
+        }
+
+        // Ensure the player ends up at the correct height after the vault
+        transform.position = new Vector3(transform.position.x, ledgePosition.y + vaultHeight, transform.position.z);
+        Debug.Log("New transform: " + transform.position);
+        isVaulting = false;
+    }
+
+    // Update (Fixed for incosistent frame rate changes?)
+
+    private void Update() {
         if (!isDashing) {
-            HandleMovement();
-
-            if (Input.GetKeyDown(KeyCode.Alpha2) && isWeaponSheathed) {
-                inHandsWeapon = playerSword;
-                StartCoroutine(UnsheathSword());
-                inHandsWeapon.OnEquip();
-            } else if (Input.GetKeyDown(KeyCode.Alpha1) && !isWeaponSheathed) {
-                StartCoroutine(SheathSword());
-                inHandsWeapon.onStopUse();
-            }
-
-            if (Utility.IsGrounded(gameObject)) {
-                BobbingMotion();
-                if (!isBlocking && !isBowBeingReadied && !isCharging)
-                    playerStats.AdjustStamina(0.1f);
-                if (characterController.velocity.magnitude > 0) {
-                    bobbingDelayTimer += Time.fixedDeltaTime;
-
-                    if (bobbingDelayTimer >= footstepDelay) {
-                        PlayFootStep();
-                        bobbingDelayTimer = 0f;
-                    }
-                } else {
-                    bobbingDelayTimer = 0f;
+            if (!isVaulting && Input.GetKeyDown(KeyCode.Space)) {
+                RaycastHit hit;
+                if (Physics.Raycast(transform.position, transform.forward, out hit, vaultHeight, vaultLayerMask)) {
+                    // Detected a ledge, start vaulting
+                    StartCoroutine(VaultOverLedge(hit.point));
                 }
             }
 
-            if (inOffHandHoldable != null) {
-                if (inOffHandHoldable.type == HoldableType.Shield && Input.GetMouseButton(1)) {
-                    //Debug.Log("isBlocking!");
-                    playerAnimator.SetBool("Block", true);
-                    if (!isBlocking) {
-                        inOffHandHoldable.OnUse();
-                        isBlocking = true;
+            //transform.rotation = Quaternion.Lerp(transform.rotation, inHandsWeapon.transform.rotation, Time.deltaTime * 10.0f);
+
+
+            if (!isMainHandBusy) {
+                if (Input.GetKeyDown(KeyCode.Alpha1) && isWeaponSheathed) {
+                    StartCoroutine(MainHandBusyDelay(2.25f));
+                    inHandsWeapon = playerSword;
+                    StartCoroutine(UnsheathSword());
+                    inHandsWeapon.OnEquip();
+                } else if (Input.GetKeyDown(KeyCode.Alpha1) && !isWeaponSheathed) {
+                    StartCoroutine(MainHandBusyDelay(2.0f));
+                    StartCoroutine(SheathSword());
+                    inHandsWeapon.onStopUse();
+                }
+                if (!isWeaponSheathed && !isBlocking && canAttack) {
+                    if (Input.GetMouseButtonDown(0) && !isCharging) {
+                        AttackBase();
+                        StartCoroutine(AttackDelay());
+                        playerStats.AdjustStamina(-5.5f);
                     }
-                } else {
-                    //Debug.Log("Not blocking!");
-                    playerAnimator.SetBool("Block", false);
-                    if (isBlocking) {
-                        inOffHandHoldable.GetComponent<Shield>().retractShield();
-                        isBlocking = false;
+
+                    if (Input.GetMouseButtonDown(1) && inOffHandHoldable == null)
+                        StartCharging();
+                    if (isCharging) {
+                        if (Input.GetMouseButtonUp(1))
+                            EndCharging();
+                        else if (Input.GetMouseButtonDown(0)) {
+                            ReleaseChargedAttack();
+                            StartCoroutine(AttackDelay());
+                            playerStats.AdjustStamina(-9.5f);
+                        }
                     }
                 }
-                if (inOffHandHoldable.type == HoldableType.Torch && Input.GetMouseButtonDown(1)) {
-                    StartCoroutine(TorchAttack());
-                    playerStats.AdjustStamina(-4.0f);
-                }
             }
 
-            if (Input.GetKeyDown(KeyCode.Alpha3)) {
-                if (inOffHandHoldable == null) {
-                    inOffHandHoldable = playerShield;
-                    OffhandEnable();
-                } else {
-                    OffHandDisable();
+            if (!isOffHandBusy) {
+                if (inOffHandHoldable != null) {
+                    if (inOffHandHoldable.type == HoldableType.Shield && Input.GetMouseButton(1)) {
+                        //Debug.Log("isBlocking!");
+                        playerAnimator.SetBool("Block", true);
+                        if (!isBlocking) {
+                            inOffHandHoldable.OnUse();
+                            isBlocking = true;
+                        }
+                    } else {
+                        //Debug.Log("Not blocking!");
+                        playerAnimator.SetBool("Block", false);
+                        if (isBlocking) {
+                            inOffHandHoldable.GetComponent<Shield>().retractShield();
+                            isBlocking = false;
+                        }
+                    }
+                    if (inOffHandHoldable.type == HoldableType.Torch && Input.GetMouseButtonDown(1)) {
+                        StartCoroutine(TorchAttack());
+                        playerStats.AdjustStamina(-4.0f);
+                    }
                 }
-            }
 
-            if (Input.GetKeyDown(KeyCode.Alpha4)) {
-                if (inOffHandHoldable == null) {
-                    inOffHandHoldable = playerTorch;
-                    OffhandEnable();
-                } else {
-                    OffHandDisable();
+                if (Input.GetKeyDown(KeyCode.Alpha3)) {
+                    if (inOffHandHoldable == null) {
+                        inOffHandHoldable = playerShield;
+                        StartCoroutine(OffHandBusyDelay(3.0f));
+                        OffhandEnable();
+                    } else {
+                        StartCoroutine(OffHandBusyDelay(3.0f));
+                        OffHandDisable();
+                    }
+                }
+
+                if (Input.GetKeyDown(KeyCode.Alpha4)) {
+                    if (inOffHandHoldable == null) {
+                        inOffHandHoldable = playerTorch;
+                        StartCoroutine(OffHandBusyDelay(3.0f));
+                        OffhandEnable();
+                    } else {
+                        StartCoroutine(OffHandBusyDelay(3.0f));
+                        OffHandDisable();
+                    }
                 }
             }
 
             if (Input.GetKeyDown(KeyCode.Alpha5) && isWeaponSheathed && inOffHandHoldable == null) {
-                if (!isBowEquipped) {
+                if (!isBowEquipped && !isMainHandBusy) {
                     Debug.Log("Bow Equip");
+                    isOffHandBusy = true;
                     inHandsWeapon = playerBow;
                     StartCoroutine(UnsheathBow());
                 } else {
                     Debug.Log("Bow UnEquip");
+                    StartCoroutine(OffHandBusyDelay(3.0f));
+                    StartCoroutine(MainHandBusyDelay(3.0f));
                     StartCoroutine(SheathBow());
                 }
             }
@@ -450,28 +632,42 @@ public class FPSController : MonoBehaviour {
                 }
             }
 
-            if (!isWeaponSheathed && !isBlocking && canAttack) {
-                if (!isDashing && Input.GetMouseButtonDown(0)) {
-                    StartCoroutine(AttackBase());
-                    playerStats.AdjustStamina(-5.5f);
-                }
-
-                if (Input.GetMouseButtonDown(1))
-                    StartCharging();
-
-                if (isCharging && Input.GetMouseButtonUp(1)) {
-                    ReleaseChargedAttack();
-                    playerStats.AdjustStamina(-9.5f);
-                }
-            }
-
             if (isCharging) {
                 currentChargeTime += Time.deltaTime * chargeSpeed;
                 currentChargeTime = Mathf.Clamp(currentChargeTime, 0.0f, maxChargeTime);
             }
-        } else {
-            DashBobbingMotion();
         }
+    }
+
+    
+    private void FixedUpdate() {
+        if (isMovementEnabled) {
+            HandleMovement();
+            if (!isDashing) {
+                if (Utility.IsGrounded(gameObject)) {
+                    BobbingMotion();
+                    if (!isBlocking && !isBowBeingReadied && !isCharging)
+                        playerStats.AdjustStamina(0.1f);
+                    currentPos = rb.position;
+                    if (currentPos != lastPos) {
+                        bobbingDelayTimer += Time.fixedDeltaTime;
+
+                        if (bobbingDelayTimer >= footstepDelay) {
+                            PlayFootStep();
+                            bobbingDelayTimer = 0f;
+                        }
+                        lastPos = currentPos;
+                    } else {
+                        bobbingDelayTimer = 0f;
+                    }
+                }
+            } else {
+                DashBobbingMotion();
+            }
+        }
+        
         playerUI.UpdateAllUIBars();
     }
+
 }
+

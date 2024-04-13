@@ -2,14 +2,25 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Stats : MonoBehaviour
-{
+public class Stats : MonoBehaviour {
     [SerializeField]
-    private float maxTotalHealth, maxTotalStamina, maxTotalPower;
+    private float maxTotalHealth, maxTotalStamina, maxTotalPower ;
     [SerializeField]
     private float currentHealth, currentStamina, currentPower;
 
+    /*
     private void Start() {
+        maxTotalHealth = Utility.HEALTH_MAX;
+        maxTotalStamina = Utility.STAMINA_MAX;
+        maxTotalPower = Utility.POWER_MAX;
+
+        currentHealth = maxTotalHealth;
+        currentStamina = maxTotalStamina;
+        currentPower = maxTotalPower;
+    }
+    */
+
+    public void InitializeStats() {
         maxTotalHealth = Utility.HEALTH_MAX;
         maxTotalStamina = Utility.STAMINA_MAX;
         maxTotalPower = Utility.POWER_MAX;
@@ -62,5 +73,13 @@ public class Stats : MonoBehaviour
         currentPower = Mathf.Clamp(currentPower, 0.0f, maxTotalPower);
         //if (currentPower < 0)
             //currentPower = 0;
+    }
+
+    public void TakeDamage(float damageAmount) {
+        AdjustHealth(-damageAmount);
+    }
+
+    public void TakeStaminaDrain(float reductionAmount) {
+        AdjustStamina(-reductionAmount);
     }
 }
